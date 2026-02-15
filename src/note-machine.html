@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Note Machine - Guitar Machines</title>
+    <link rel="stylesheet" href="css/styles.css">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header>
+        <nav>
+            <a href="index.html" class="logo">QFGM</a>
+            <div class="nav-links">
+                <a href="note-machine.html" class="active">Note Machine</a>
+                <a href="scale-machine.html">Scale Machine</a>
+            </div>
+        </nav>
+    </header>
+
+    <main>
+        <h1>Note Machine</h1>
+        <p>Identify the highlighted note on the fretboard!</p>
+
+        <div class="controls">
+            <div class="control-group">
+                <label>Include Accidentals</label>
+                <select id="accidentals">
+                    <option value="none">Natural notes only</option>
+                    <option value="sharps">Include sharps</option>
+                    <option value="flats">Include flats</option>
+                    <option value="both" selected>Sharps & flats</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Fret Range</label>
+                <select id="fretRange">
+                    <option value="1-12" selected>All (1-12)</option>
+                    <option value="1-5">Frets 1-5</option>
+                    <option value="6-12">Frets 6-12</option>
+                </select>
+            </div>
+            <button id="newQuestion" class="primary">New Note</button>
+            <button id="resetStats">Reset Stats</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-value" id="correctCount">0</div>
+                <div class="stat-label">Correct</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="wrongCount">0</div>
+                <div class="stat-label">Wrong</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="streakCount">0</div>
+                <div class="stat-label">Streak</div>
+            </div>
+            <div class="stat">
+                <div class="stat-value" id="accuracy">0%</div>
+                <div class="stat-label">Accuracy</div>
+            </div>
+        </div>
+
+        <div class="fretboard-container">
+            <div class="fretboard" id="fretboard"></div>
+            <div class="fret-markers" id="fretMarkers"></div>
+        </div>
+
+        <div class="feedback" id="feedback"></div>
+
+        <div class="note-buttons" id="noteButtons"></div>
+    </main>
+
+    <footer>
+        <p>A guitar learning tool</p>
+    </footer>
+
+    <script>
+        // Standard tuning: E A D G B E (low to high)
+        const TUNING = ['E', 'B', 'G', 'D', 'A', 'E'];
+        const NOTES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const NOTES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+        const NATURAL_NOTES = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+        const NUM_FRETS = 12;
+        const FRET_MARKERS = [3, 5, 7, 9, 12];
+        const DOUBLE_MARKERS = [12];
+
+        let currentNote = null;
+        let currentString = null;
+        let currentFret = null;
+        let stats = { correct: 0, wrong: 0, streak: 0 };
+        let answered = false;
+
+        // Get note at a specific position
+        function getNoteAt(stringIndex, fret) {
+            const openNote = TUNING[stringIndex];
+            const openNoteIndex = NOTES.indexOf(openNote);
+            const noteIndex = (openNoteIndex + fret) % 12;
+            return NOTES[noteIndex];
+        }
+
+        // Get enharmonic equivalents
+        function getEnharmonic(note) {
+            const sharpIndex = NOTES.indexOf(note);
+            const flatIndex = NOTES_FLAT.indexOf(note);
+
+            if (sharpIndex !== -1 && NOTES_FLAT[sharpIndex] !== note) {
+                return NOTES_FLAT[sharpIndex];
+            }
+            if (flatIndex !== -1 && NOTES[flatIndex] !== note) {
+                return NOTES[flatIndex];
+            }
+            return null;
+        }
+
+        // Build fretboard
+        function buildFretboard() {
+            const fretboard = document.getElementById('fretboard');
+            const markers = document.getElementById('fretMarkers');
+            fretboard.innerHTML = '';
+            markers.innerHTML = '';
+
+            // Build strings
+            for (let s = 0; s < 6; s++) {
+                const row = document.createElement('div');
+                row.className = 'string-row';
+
+                const label = document.createElement('div');
+                label.className = 'string-label';
+                label.textContent = TUNING[s];
+                row.appendChild(label);
+
+                const frets = document.createElement('div');
+                frets.className = 'frets';
+
+                for (let f = 1; f <= NUM_FRETS; f++) {
+                    const fret = document.createElement('div');
+                    fret.className = 'fret';
+                    fret.dataset.string = s;
+                    fret.dataset.fret = f;
+
+                    const note = document.createElement('div');
+                    note.className = 'fret-note';
+                    note.id = `note-${s}-${f}`;
+                    fret.appendChild(note);
+
+                    frets.appendChild(fret);
+                }
+
+                row.appendChild(frets);
+                fretboard.appendChild(row);
+            }
+
+            // Build fret markers
+            for (let f = 1; f <= NUM_FRETS; f++) {
+                const marker = document.createElement('div');
+                marker.className = 'fret-marker';
+                marker.textContent = f;
+
+                if (DOUBLE_MARKERS.includes(f)) {
+                    marker.classList.add('double-dot');
+                } else if (FRET_MARKERS.includes(f)) {
+                    marker.classList.add('dot');
+                }
+
+                markers.appendChild(marker);
+            }
+        }
+
+        // Build note buttons
+        function buildNoteButtons() {
+            const container = document.getElementById('noteButtons');
+            container.innerHTML = '';
+
+            const accidentals = document.getElementById('accidentals').value;
+            let notes = [];
+
+            if (accidentals === 'none') {
+                notes = NATURAL_NOTES;
+            } else if (accidentals === 'sharps') {
+                notes = NOTES;
+            } else if (accidentals === 'flats') {
+                notes = NOTES_FLAT;
+            } else {
+                // Both - show naturals plus sharps/flats
+                notes = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
+            }
+
+            notes.forEach(note => {
+                const btn = document.createElement('button');
+                btn.className = 'note-btn';
+                btn.textContent = note;
+                btn.onclick = () => checkAnswer(note);
+                container.appendChild(btn);
+            });
+        }
+
+        // Generate new question
+        function newQuestion() {
+            // Clear previous highlight
+            document.querySelectorAll('.fret-note').forEach(n => {
+                n.classList.remove('highlight', 'correct', 'wrong', 'visible');
+                n.textContent = '';
+            });
+            document.querySelectorAll('.note-btn').forEach(b => {
+                b.classList.remove('correct', 'wrong');
+                b.disabled = false;
+            });
+            document.getElementById('feedback').textContent = '';
+            document.getElementById('feedback').className = 'feedback';
+
+            // Get fret range
+            const range = document.getElementById('fretRange').value.split('-').map(Number);
+            const minFret = range[0];
+            const maxFret = range[1];
+
+            // Pick random position
+            currentString = Math.floor(Math.random() * 6);
+            currentFret = Math.floor(Math.random() * (maxFret - minFret + 1)) + minFret;
+            currentNote = getNoteAt(currentString, currentFret);
+            answered = false;
+
+            // Highlight the position
+            const noteEl = document.getElementById(`note-${currentString}-${currentFret}`);
+            noteEl.classList.add('highlight');
+            noteEl.textContent = '?';
+        }
+
+        // Check answer
+        function checkAnswer(guess) {
+            if (answered) return;
+
+            const noteEl = document.getElementById(`note-${currentString}-${currentFret}`);
+            const enharmonic = getEnharmonic(currentNote);
+            const isCorrect = guess === currentNote || guess === enharmonic;
+
+            answered = true;
+
+            // Disable all buttons
+            document.querySelectorAll('.note-btn').forEach(b => b.disabled = true);
+
+            // Show result
+            noteEl.classList.remove('highlight');
+            noteEl.textContent = currentNote;
+
+            if (isCorrect) {
+                noteEl.classList.add('correct');
+                document.querySelector(`.note-btn:nth-child(${getButtonIndex(guess) + 1})`).classList.add('correct');
+                stats.correct++;
+                stats.streak++;
+                document.getElementById('feedback').textContent = 'Correct!';
+                document.getElementById('feedback').className = 'feedback correct';
+            } else {
+                noteEl.classList.add('wrong');
+                // Highlight the wrong guess
+                const wrongBtn = Array.from(document.querySelectorAll('.note-btn')).find(b => b.textContent === guess);
+                if (wrongBtn) wrongBtn.classList.add('wrong');
+                // Highlight the correct answer
+                const correctBtn = Array.from(document.querySelectorAll('.note-btn')).find(b => b.textContent === currentNote);
+                if (correctBtn) correctBtn.classList.add('correct');
+                stats.wrong++;
+                stats.streak = 0;
+                document.getElementById('feedback').textContent = `Wrong! It was ${currentNote}`;
+                document.getElementById('feedback').className = 'feedback wrong';
+            }
+
+            updateStats();
+
+            // Auto next after delay
+            setTimeout(() => {
+                if (answered) newQuestion();
+            }, 1500);
+        }
+
+        function getButtonIndex(note) {
+            const buttons = document.querySelectorAll('.note-btn');
+            return Array.from(buttons).findIndex(b => b.textContent === note);
+        }
+
+        function updateStats() {
+            document.getElementById('correctCount').textContent = stats.correct;
+            document.getElementById('wrongCount').textContent = stats.wrong;
+            document.getElementById('streakCount').textContent = stats.streak;
+            const total = stats.correct + stats.wrong;
+            const accuracy = total > 0 ? Math.round((stats.correct / total) * 100) : 0;
+            document.getElementById('accuracy').textContent = accuracy + '%';
+        }
+
+        function resetStats() {
+            stats = { correct: 0, wrong: 0, streak: 0 };
+            updateStats();
+        }
+
+        // Event listeners
+        document.getElementById('newQuestion').onclick = newQuestion;
+        document.getElementById('resetStats').onclick = resetStats;
+        document.getElementById('accidentals').onchange = () => {
+            buildNoteButtons();
+            newQuestion();
+        };
+        document.getElementById('fretRange').onchange = newQuestion;
+
+        // Initialize
+        buildFretboard();
+        buildNoteButtons();
+        newQuestion();
+    </script>
+</body>
+</html>
