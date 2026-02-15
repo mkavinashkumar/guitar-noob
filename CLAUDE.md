@@ -311,7 +311,6 @@ select {
 
 ## Project Structure
 ```
-src/
 ├── css/styles.css      # Main stylesheet
 ├── index.html          # Home page
 ├── note-machine.html   # Fretboard note quiz
@@ -320,6 +319,6 @@ src/
 
 ## Running Locally
 ```bash
-cd src && python3 -m http.server 8000
+python3 -m http.server 8000
 ```
 Then open http://localhost:8000
