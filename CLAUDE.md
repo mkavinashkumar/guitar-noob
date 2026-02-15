@@ -1,4 +1,4 @@
-# Guitar Machines Project
+# Guitar Noob
 
 ## 2026 Minimalist UI Aesthetic
 
